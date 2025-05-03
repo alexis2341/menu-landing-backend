@@ -1,4 +1,6 @@
+// Este archivo es el punto de entrada para el servidor Express que se conecta a Firestore
 const express = require("express");
+const cors = require("cors");
 const admin = require("firebase-admin");
 const path = require("path");
 
@@ -13,6 +15,8 @@ const db = admin.firestore();
 
 // Crear servidor Express
 const app = express();
+// Configurar middlewares
+app.use(cors());
 app.use(express.json()); // Middleware para parsear JSON
 
 // Ruta para agregar un usuario a la base de datos
