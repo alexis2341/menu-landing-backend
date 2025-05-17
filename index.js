@@ -47,7 +47,9 @@ app.post("/addUser", async (req, res) => {
       nombre,
       email,
       telefono,
+      fechaRegistro: admin.firestore.FieldValue.serverTimestamp(),
     });
+    
 
     res.status(200).send(`Usuario agregado con ID: ${docRef.id}`);
   } catch (error) {
