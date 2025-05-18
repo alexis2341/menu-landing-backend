@@ -3,43 +3,40 @@ const cors = require("cors");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer");
 
-// Inicializar Firebase Admin SDK con las credenciales
+// Inicializar Firebase
 const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
-
+admin.initializeApp({ credential: admin.credential.cert(serviceAccount) });
 const db = admin.firestore();
 
 const app = express();
 
-// Configurar CORS para aceptar peticiones desde tu frontend
+// Configuración de CORS para permitir tu frontend y preflight
 app.use(cors({
-  origin: "https://tu-frontend-url.com", // Cambia esto por tu URL de frontend
-  methods: ["POST"],
+  origin: "https://menu-landing-frontend.vercel.app", // URL exacta de tu frontend
+  methods: ["POST", "OPTIONS"], // Añade OPTIONS para preflight
+  allowedHeaders: ["Content-Type"],
 }));
+
+// Middleware para manejar preflight
+app.options("*", cors()); // Respuesta automática para OPTIONS
 
 app.use(express.json());
 
-// Configurar nodemailer con Gmail
+// Configurar Nodemailer
 const transporter = nodemailer.createTransport({
   service: "gmail",
-  auth: {
-    user: process.env.MAIL_USER,
-    pass: process.env.MAIL_PASS,
-  },
+  auth: { user: process.env.MAIL_USER, pass: process.env.MAIL_PASS },
 });
 
-// Ruta para agregar un usuario a la base de datos
+// Ruta para agregar usuario
 app.post("/addUser", async (req, res) => {
   const { nombre, email, telefono, captcha } = req.body;
 
   if (!captcha) {
-    return res.status(400).json({ message: "Falta el CAPTCHA" });
+    return res.status(400).json({ error: "Falta el CAPTCHA" });
   }
 
-  // Verificar captcha con Google
+  // Verificar reCAPTCHA
   try {
     const captchaVerifyUrl = `https://www.google.com/recaptcha/api/siteverify?secret=${process.env.RECAPTCHA_SECRET}&response=${captcha}`;
     const fetch = await import("node-fetch");
@@ -47,13 +44,13 @@ app.post("/addUser", async (req, res) => {
     const data = await response.json();
 
     if (!data.success) {
-      return res.status(403).json({ message: "Fallo la verificación CAPTCHA" });
+      return res.status(403).json({ error: "CAPTCHA inválido" });
     }
   } catch (error) {
-    return res.status(500).json({ message: "Error al verificar CAPTCHA" });
+    return res.status(500).json({ error: "Error al validar CAPTCHA" });
   }
 
-  // Guardar en Firestore y enviar correo
+  // Guardar en Firestore y enviar email
   try {
     const docRef = await db.collection("usuarios").add({
       nombre,
@@ -62,24 +59,18 @@ app.post("/addUser", async (req, res) => {
       fechaRegistro: admin.firestore.FieldValue.serverTimestamp(),
     });
 
-    // Enviar email de confirmación
-    const mailOptions = {
+    await transporter.sendMail({
       from: `"Menu Landing" <${process.env.MAIL_USER}>`,
       to: email,
       subject: "¡Registro exitoso!",
-      text: `Hola ${nombre}, gracias por registrarte. Te contactaremos pronto.`,
-    };
+      text: `Hola ${nombre}, gracias por registrarte.`,
+    });
 
-    await transporter.sendMail(mailOptions);
-
-    res.status(200).send(`Usuario agregado con ID: ${docRef.id}`);
+    res.status(200).json({ success: true, id: docRef.id });
   } catch (error) {
-    res.status(500).send("Error al agregar usuario o enviar correo: " + error.message);
+    res.status(500).json({ error: "Error en el servidor" });
   }
 });
 
-// Iniciar servidor
 const port = process.env.PORT || 5000;
-app.listen(port, () => {
-  console.log(`Servidor corriendo en http://localhost:${port}`);
-});
+app.listen(port, () => console.log(`Servidor corriendo en puerto ${port}`));
