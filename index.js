@@ -1,8 +1,6 @@
-// index.js
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
-const path = require("path");
 const nodemailer = require("nodemailer");
 
 // Inicializar Firebase Admin SDK con las credenciales
@@ -15,15 +13,21 @@ admin.initializeApp({
 const db = admin.firestore();
 
 const app = express();
-app.use(cors());
+
+// Configurar CORS para aceptar peticiones desde tu frontend
+app.use(cors({
+  origin: "https://tu-frontend-url.com", // Cambia esto por tu URL de frontend
+  methods: ["POST"],
+}));
+
 app.use(express.json());
 
 // Configurar nodemailer con Gmail
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: process.env.MAIL_USER, // Tu correo Gmail
-    pass: process.env.MAIL_PASS, // Contraseña de aplicación
+    user: process.env.MAIL_USER,
+    pass: process.env.MAIL_PASS,
   },
 });
 
@@ -75,7 +79,7 @@ app.post("/addUser", async (req, res) => {
 });
 
 // Iniciar servidor
-const port = 5000;
+const port = process.env.PORT || 5000;
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
 });
