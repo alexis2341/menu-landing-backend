@@ -1,23 +1,31 @@
-// Este archivo es el punto de entrada para el servidor Express que se conecta a Firestore
+// index.js
 const express = require("express");
 const cors = require("cors");
 const admin = require("firebase-admin");
 const path = require("path");
+const nodemailer = require("nodemailer");
 
 // Inicializar Firebase Admin SDK con las credenciales
 const serviceAccount = JSON.parse(process.env.FIREBASE_CONFIG);
 
 admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-  
+  credential: admin.credential.cert(serviceAccount),
+});
+
 const db = admin.firestore();
 
-// Crear servidor Express
 const app = express();
-// Configurar middlewares
 app.use(cors());
-app.use(express.json()); // Middleware para parsear JSON
+app.use(express.json());
+
+// Configurar nodemailer con Gmail
+const transporter = nodemailer.createTransport({
+  service: "gmail",
+  auth: {
+    user: process.env.MAIL_USER, // Tu correo Gmail
+    pass: process.env.MAIL_PASS, // Contraseña de aplicación
+  },
+});
 
 // Ruta para agregar un usuario a la base de datos
 app.post("/addUser", async (req, res) => {
@@ -41,7 +49,7 @@ app.post("/addUser", async (req, res) => {
     return res.status(500).json({ message: "Error al verificar CAPTCHA" });
   }
 
-  // Guardar en Firestore
+  // Guardar en Firestore y enviar correo
   try {
     const docRef = await db.collection("usuarios").add({
       nombre,
@@ -49,16 +57,24 @@ app.post("/addUser", async (req, res) => {
       telefono,
       fechaRegistro: admin.firestore.FieldValue.serverTimestamp(),
     });
-    
+
+    // Enviar email de confirmación
+    const mailOptions = {
+      from: `"Menu Landing" <${process.env.MAIL_USER}>`,
+      to: email,
+      subject: "¡Registro exitoso!",
+      text: `Hola ${nombre}, gracias por registrarte. Te contactaremos pronto.`,
+    };
+
+    await transporter.sendMail(mailOptions);
 
     res.status(200).send(`Usuario agregado con ID: ${docRef.id}`);
   } catch (error) {
-    res.status(500).send("Error al agregar usuario: " + error.message);
+    res.status(500).send("Error al agregar usuario o enviar correo: " + error.message);
   }
 });
 
-
-// Iniciar el servidor en el puerto 5000
+// Iniciar servidor
 const port = 5000;
 app.listen(port, () => {
   console.log(`Servidor corriendo en http://localhost:${port}`);
